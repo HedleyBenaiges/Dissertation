@@ -1,0 +1,58 @@
+#include <stdint.h>
+#include <stddef.h>
+#include "api.h"
+
+// ELMO special function prototypes
+extern void starttrigger();
+extern void endtrigger();
+extern void endprogram();
+extern uint8_t readbyte();
+extern void printbyte(uint8_t b);
+
+/* FIX: Provide the randomness function PQClean is looking for */
+int PQCLEAN_randombytes(uint8_t *out, size_t outlen) {
+    for (size_t i = 0; i < outlen; i++) {
+        out[i] = 0x42; // Constant value for deterministic SCA simulation
+    }
+    return 0;
+}
+
+/* System Call Stubs to satisfy the linker */
+void _exit(int status) { while(1); }
+int _close(int file) { return -1; }
+int _lseek(int file, int ptr, int dir) { return 0; }
+int _read(int file, char *ptr, int len) { return 0; }
+int _write(int file, char *ptr, int len) { return 0; }
+void *_sbrk(int incr) { return (void *)-1; }
+void _fini(void) {}
+
+int main() {
+    uint8_t pk[PQCLEAN_MLKEM512_CLEAN_CRYPTO_PUBLICKEYBYTES];
+    uint8_t sk[PQCLEAN_MLKEM512_CLEAN_CRYPTO_SECRETKEYBYTES];
+    uint8_t ct[PQCLEAN_MLKEM512_CLEAN_CRYPTO_CIPHERTEXTBYTES];
+    uint8_t ss[PQCLEAN_MLKEM512_CLEAN_CRYPTO_BYTES];
+
+    // 1. Key Generation (usually done once or pre-loaded for SCA)
+    PQCLEAN_MLKEM512_CLEAN_crypto_kem_keypair(pk, sk);
+
+    // 2. Feed Ciphertext from ELMO (ELMO provides data via readbyte)
+    for(int i = 0; i < PQCLEAN_MLKEM512_CLEAN_CRYPTO_CIPHERTEXTBYTES; i++) {
+        ct[i] = readbyte();
+    }
+
+    // 3. THE TARGET AREA
+    // This is where ELMO will start calculating differential power
+    starttrigger(); 
+    
+    PQCLEAN_MLKEM512_CLEAN_crypto_kem_dec(ss, ct, sk);
+    
+    endtrigger();
+
+    // 4. Output results to ELMO
+    for(int i = 0; i < PQCLEAN_MLKEM512_CLEAN_CRYPTO_BYTES; i++) {
+        printbyte(ss[i]);
+    }
+
+    endprogram();
+    return 0;
+}

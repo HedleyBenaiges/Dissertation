@@ -1,0 +1,1 @@
+A small heads up: If you are compiling this for ELMO, remember that ELMO usually requires a single flat binary (.bin) or a linked .elf. This Makefile only creates the .a library. You'll still need to link your elmo_driver.c against this library using the same ARCH_FLAGS to get your final executable.
